@@ -1,19 +1,19 @@
 ## [1.2.1] - The Stability & Security Update
 
-Bu versiyon, uygulamanın çekirdek mimarisinde köklü değişiklikler yapılan, özellikle Apple Silicon (M1/M2/M3) işlemcilerindeki kronik çökmeleri (SIGABRT) çözen ve kurumsal düzeyde güvenlik önlemleri getiren en büyük güncellemelerden biridir.
+This release represents one of the most significant updates to the application, introducing deep architectural changes, resolving chronic crashes (SIGABRT) on Apple Silicon (M1/M2/M3), and implementing enterprise-grade security measures.
 
-### ✨ Yeni Özellikler ve İyileştirmeler (Features)
-* **Xterm.js Entegrasyonu:** Eski, kısıtlı metin kutusu (TextArea) mimarisi tamamen terk edildi. Tam teşekküllü bir terminal emülatörü olan `xterm.js` entegre edildi. Artık `Nano`, `Vim`, `htop` gibi gelişmiş TUI (Metin Tabanlı Arayüz) uygulamaları ve Linux renk paletleri (ANSI Color Codes) kusursuz çalışıyor.
-* **Akıllı Pencere Boyutlandırma:** Terminal penceresi yeniden boyutlandırıldığında arka plandaki SSH (PTY) sunucusuna yeni satır/sütun koordinatları saniyesinde iletilir. `ResizeObserver` ve `Debouncing` kullanılarak `Nano` gibi editörlerin ekrana tam esnemesi sağlandı.
-* **Gelişmiş Cross-Platform Desteği:** Artık uygulama hem macOS için izole bir `.app` formatında, hem de Windows için `.exe` (Launch4j) formatında tek tıkla derlenip çalışabiliyor.
+### ✨ Features & Improvements
+* **Xterm.js Integration:** The old, limited TextArea-based architecture has been completely replaced. A full-featured terminal emulator, `xterm.js`, is now integrated. Advanced TUI (Text-based UI) applications such as `nano`, `vim`, and `htop`, along with full ANSI color support, now work flawlessly.
+* **Smart Window Resizing:** When the terminal window is resized, updated row/column dimensions are instantly transmitted to the underlying SSH (PTY) session. Using `ResizeObserver` and debouncing, applications like `nano` dynamically adapt to the available screen space.
+* **Enhanced Cross-Platform Support:** The application can now be built and distributed as a standalone `.app` for macOS and a `.exe` (via Launch4j) for Windows with a single click.
 
-### 🛠 Mimari Değişiklikler (Architecture Overhaul)
-* **JNI/WebKit Çökmelerine Kesin Çözüm:** JavaFX WebView'ın Mac ARM mimarisinde JNI (`executeScript` ve `JSObject`) üzerinden haberleşirken yarattığı native bellek çökmeleri (EXC_BAD_ACCESS) tamamen izole edildi. Java ve Javascript arasındaki tüm eski veri köprüleri yıkıldı.
-* **Yerel HTTP Sunucusu (Local Polling Server):** Uygulamanın içine asenkron bir mini-HTTP sunucusu entegre edildi. Artık Xterm.js arayüzü ile Java arka planı birbirlerine JNI ile değil, `http://localhost:<port>/` üzerinden "Polling (Sürekli Veri Çekme)" yöntemiyle konuşuyor. Bu sayede binlerce satırlık log akışları bile UI'ı dondurmadan ve çöktürmeden ekrana yansıtılıyor.
-* **Sıfır Hayalet Süreç (Zero Dangling Threads):** Uygulama kapatıldığında (X butonuna basıldığında) arkada asılı kalan ve uygulamanın Dock'ta takılı kalmasına neden olan HTTP ve SSH işçi parçacıkları (Worker Threads) için "Graceful Shutdown" eklendi. Çıkış anında JVM hafızası tertemiz boşaltılıyor.
+### 🛠 Architecture Overhaul
+* **Definitive Fix for JNI/WebKit Crashes:** Native memory crashes (EXC_BAD_ACCESS) caused by JavaFX WebView communication over JNI (`executeScript`, `JSObject`) on macOS ARM have been fully eliminated. All legacy Java-JavaScript bridges have been removed.
+* **Local HTTP Server (Polling-Based Communication):** An asynchronous embedded HTTP server has been introduced. Instead of JNI, communication between the Xterm.js frontend and the Java backend now occurs via `http://localhost:<port>/` using a polling mechanism. This ensures that even high-volume log streams are rendered smoothly without UI freezes or crashes.
+* **Zero Dangling Threads:** A proper "graceful shutdown" mechanism has been implemented for HTTP and SSH worker threads. When the application is closed, no background processes remain, and the JVM memory is cleanly released.
 
-### 🔒 Güvenlik (Security Fixes)
-* **CORS ve Network Binding Kısıtlaması:** Yerel HTTP sunucusunun sadece `127.0.0.1` adresinden gelen isteklere yanıt vermesi sağlandı. Böylece aynı Wi-Fi ağındaki yabancı cihazların terminale sızması engellendi. (Network Access Control).
-* **Uygulamalar Arası Güvenlik (Cross-Process IPC Security):** Aynı bilgisayarda arka planda çalışan zararlı yazılımların veya zararlı web sitelerinin SSH terminalinize komut göndermesini engellemek için **UUID Token Doğrulaması** getirildi. Java tarafından rastgele üretilen kırılamaz şifreler, sadece ekrandaki WebView'a aktarılarak yetkisiz yerel girişler bloklandı (403 Forbidden).
-* **Güvenli SSH Anahtar Doğrulaması:** SSH Sunucu anahtarlarının kontrolsüz kabul edilmesi engellenerek, bilinen anahtarların listesiyle (Known Hosts / TOFU) doğrulanması prensibine geçildi.
-* **Bellek Temizliği:** Kullanıcı oturum açtıktan hemen sonra bellekte tutulan parolalar güvenlik amacıyla anında siliniyor (Wipe-on-Connect).
+### 🔒 Security Fixes
+* **CORS & Network Binding Restrictions:** The local HTTP server is now restricted to respond only to requests from `127.0.0.1`. This prevents unauthorized access from other devices on the same network (Network Access Control).
+* **Cross-Process IPC Security:** To prevent malicious local processes or web pages from injecting commands into your SSH terminal, **UUID-based token authentication** has been implemented. Secure, randomly generated tokens are passed only to the WebView, blocking all unauthorized local access (403 Forbidden).
+* **Secure SSH Host Key Verification:** Blind acceptance of SSH host keys has been eliminated. The application now follows a Known Hosts / TOFU (Trust On First Use) model for host verification.
+* **Memory Sanitization:** User credentials stored in memory are immediately wiped after a successful login (Wipe-on-Connect).
