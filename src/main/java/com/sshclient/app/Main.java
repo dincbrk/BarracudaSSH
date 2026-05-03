@@ -16,6 +16,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.scene.web.WebView;
 
 import java.io.File;
 import java.io.PipedInputStream;
@@ -153,7 +154,10 @@ public class Main extends Application {
         root.setBottom(bottomButtons);
         
         // --- Actions ---
-        cancelBtn.setOnAction(e -> Platform.exit());
+        cancelBtn.setOnAction(e -> {
+            Platform.exit();
+            System.exit(0);
+        });
         
         openBtn.setOnAction(e -> {
             ConnectionConfig config = new ConnectionConfig(
@@ -175,6 +179,10 @@ public class Main extends Application {
 
         Scene scene = new Scene(root, 550, 480);
         configStage.setScene(scene);
+        configStage.setOnCloseRequest(e -> {
+            Platform.exit();
+            System.exit(0);
+        });
         configStage.show();
     }
 
@@ -352,52 +360,23 @@ public class Main extends Application {
             terminalStage.getIcons().add(new Image(getClass().getResourceAsStream("/barracudassh.png")));
         } catch (Exception e) {}
 
-        TextArea terminalArea = new TextArea();
-        terminalArea.setStyle("-fx-font-family: 'Courier New'; -fx-control-inner-background: #000000; -fx-text-fill: #BBBBBB; -fx-font-size: 14px; -fx-highlight-fill: #555555; -fx-text-box-border: transparent; -fx-focus-color: transparent;");
-        terminalArea.setWrapText(true);
+        WebView webView = new WebView();
+        // Give the WebView a dark background immediately
+        webView.setStyle("-fx-background-color: #000000;");
 
-        terminalArea.addEventFilter(KeyEvent.KEY_TYPED, event -> event.consume());
-        terminalArea.setOnMouseClicked(event -> terminalArea.positionCaret(terminalArea.getLength()));
-
-        terminalArea.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (emulator != null && sshService != null && sshService.isConnected()) {
-                String input = "";
-                switch (event.getCode()) {
-                    case ENTER: input = "\r"; break;
-                    case BACK_SPACE: input = "\177"; break;
-                    case TAB: input = "\t"; break;
-                    case UP: input = "\033[A"; break;
-                    case DOWN: input = "\033[B"; break;
-                    case RIGHT: input = "\033[C"; break;
-                    case LEFT: input = "\033[D"; break;
-                    default:
-                        if (!event.getText().isEmpty()) {
-                            input = event.getText();
-                        }
-                        break;
-                }
-                if (!input.isEmpty()) {
-                    emulator.sendInput(input);
-                }
-                event.consume();
-            }
-        });
-
-        Scene scene = new Scene(terminalArea, 800, 600);
+        Scene scene = new Scene(webView, 800, 600);
         terminalStage.setScene(scene);
         terminalStage.setOnCloseRequest(e -> {
             disconnect();
             Platform.exit();
+            System.exit(0);
         });
         terminalStage.show();
 
-        connect(config, terminalArea);
+        connect(config, webView);
     }
 
-    private void connect(ConnectionConfig config, TextArea terminalArea) {
-        terminalArea.appendText("Looking up host \"" + config.getHost() + "\"...\n");
-        terminalArea.appendText("Connecting to " + config.getHost() + " port " + config.getPort() + "...\n");
-
+    private void connect(ConnectionConfig config, javafx.scene.web.WebView webView) {
         new Thread(() -> {
             try {
                 sshService = new SSHClientService();
@@ -410,7 +389,12 @@ public class Main extends Application {
                 sshIn.connect(uiOut);
                 uiIn.connect(sshOut);
 
-                emulator = new TerminalEmulator(config, terminalArea, uiIn, uiOut);
+                emulator = new TerminalEmulator(config, webView, uiIn, uiOut);
+                emulator.setSshService(sshService);
+                
+                // Initialize the WebView and xterm.js (must be done on JavaFX thread via Platform.runLater or internally handled if using JS load worker)
+                Platform.runLater(() -> emulator.initialize());
+                
                 emulator.start();
 
                 sshService.connect(config, sshIn, sshOut, sshOut);
@@ -418,7 +402,9 @@ public class Main extends Application {
             } catch (Exception ex) {
                 ex.printStackTrace();
                 Platform.runLater(() -> {
-                    terminalArea.appendText("\n[Network error: " + ex.getMessage() + "]\n");
+                    if (emulator != null) {
+                        emulator.writeToTerminal("\r\n[Network error: " + ex.getMessage() + "]\r\n");
+                    }
                     Alert alert = new Alert(Alert.AlertType.ERROR);
                     alert.setTitle("BarracudaSSH Fatal Error");
                     alert.setHeaderText("Network error: " + ex.getMessage());
